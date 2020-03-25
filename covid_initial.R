@@ -1,22 +1,22 @@
 library(readxl)
 library(httr)
 library(scales)
-library(ggplot)
+library(ggplot2)
 library(mccrr)
 library(dplyr)
+library(ggrepel)
 theme_typewriter <- function() {
   ggplot2::theme_light()+
     ggplot2::theme(text = ggplot2::element_text(family = "Special Elite")) 
 }
 library(extrafont); loadfonts()
+setwd("C:\\Users\\Andrew\\Desktop\\Statistics and Data Analysis\\Covid Data")
 #create the URL where the dataset is stored with automatic updates every day
 
 url <- paste("https://www.ecdc.europa.eu/sites/default/files/documents/COVID-19-geographic-disbtribution-worldwide-",format(Sys.time(), "%Y-%m-%d"), ".xlsx", sep = "")
 
 
-data <- read_excel(tf)
-
- mark<-function(data) {
+mark<-function(data) {
    data%>% 
      filter(GeoId %in% c("US", "IT")) %>% 
      arrange(DateRep) %>% 
@@ -68,4 +68,28 @@ data <- read_excel(tf)
 data %>% 
   mark() %>% 
   covidplot()
-+
+####################################################
+
+
+data %>% 
+ #filter(GeoId == "CN") %>% 
+  group_by(GeoId) %>% 
+  arrange(as.Date(DateRep)) %>% 
+  mutate(mark = row_number()) %>% 
+  mutate(Cases_cumsum = cumsum(Cases)) %>% 
+  mutate(Deaths_cumsum = cumsum(Deaths)) %>% 
+  ggplot(aes(x = mark, y = Cases_cumsum)) +
+  geom_line() 
+
+data %>% 
+  arrange(as.Date(DateRep)) %>% 
+  group_by(GeoId) %>% 
+  mutate(mark = row_number()) %>% 
+  arrange(GeoId, mark) %>% 
+  #group_by(GeoId) %>% 
+  mutate(Cases_cumsum = cumsum(Cases)) %>% 
+  mutate(Deaths_cumsum = cumsum(Deaths)) %>% 
+  ggplot(aes(x = DateRep, y = Cases_cumsum, color = GeoId, label = GeoId)) +
+  geom_line() + 
+  guides(color = F) +
+  geom_text_repel()
