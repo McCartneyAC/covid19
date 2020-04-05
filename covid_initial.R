@@ -6,6 +6,10 @@ library(mccrr)
 library(dplyr)
 library(ggrepel)
 library(tidyr)
+library(transformr)
+library(patchwork)
+library(gganimate)
+
 theme_typewriter <- function() {
   ggplot2::theme_light()+
     ggplot2::theme(text = ggplot2::element_text(family = "Special Elite")) 
@@ -193,6 +197,7 @@ pull_data<-function(){
 }
 
 data<-pull_data()
+data
 p1<-data %>% 
   mark() %>% 
   covidplot()
@@ -209,11 +214,11 @@ p3<-data %>%
 
 data %>% 
  #filter(GeoId == "CN") %>% 
-  group_by(GeoId) %>% 
-  arrange(as.Date(DateRep)) %>% 
+  group_by(geoId) %>% 
+  arrange(as.Date(dateRep)) %>% 
   mutate(mark = row_number()) %>% 
-  mutate(Cases_cumsum = cumsum(Cases)) %>% 
-  mutate(Deaths_cumsum = cumsum(Deaths)) %>% 
+  mutate(Cases_cumsum = cumsum(cases)) %>% 
+  mutate(Deaths_cumsum = cumsum(deaths)) %>% 
   ggplot(aes(x = mark, y = Cases_cumsum)) +
   geom_line() + 
   guides(color = FALSE)
@@ -258,7 +263,7 @@ cov_curve <- data %>%
 
  topn <- cov_curve %>%
    group_by(geoId) %>%
-   filter(cu_cases == max(cu_cases)) %>%
+   filter(days_elapsed == max(days_elapsed)) %>%
    ungroup() %>%
    top_n(30, cu_cases) %>%
    select(countriesAndTerritories, geoId, cu_cases) %>%
@@ -286,7 +291,7 @@ topn_bg<- cov_curve %>%
 endpoints <- cov_curve %>% 
   filter(geoId %in% topn$geoId) %>% 
   group_by(geoId) %>% 
-  filter(cu_cases ==max(cu_cases)) %>% 
+  filter(days_elapsed ==max(days_elapsed)) %>% 
   select(countriesAndTerritories, 
          geoId, days_elapsed, 
          cu_cases) %>% 
@@ -296,26 +301,26 @@ endpoints <- cov_curve %>%
 p4<-cov_curve %>%
   filter(geoId %in% topn$geoId) %>% 
   ggplot(mapping = aes(x = days_elapsed, y = cu_cases)) + 
-  geom_line(data =topn_bg, 
-            aes(group = geoId), 
-                size = 0.15, 
-                color = "grey80") +
+  # geom_line(data =topn_bg, 
+  #           aes(group = geoId), 
+  #               size = 0.15, 
+  #               color = "grey80") +
    geom_line(color = "firebrick", lineend = "round")  +
-   geom_point(data = endpoints, 
-              size = 1.1, 
-              shape = 21, 
-              color = "firebrick", 
-              fill = "firebrick2") + 
-  geom_text(data=topn, 
-            mapping = aes(label = countriesAndTerritories),
-            vjust = "inward",
-            hjust = "inward",
-            fontface = "bold", 
-            color = "firebrick", 
-            size = 2.1
-            ) + 
-  scale_y_log10(labels = scales::label_number_si()) + 
-  facet_wrap(~reorder(countriesAndTerritories, -cu_cases), ncol = 5) + 
+   # geom_point(data = endpoints, 
+   #            size = 1.1, 
+   #            shape = 21, 
+   #            color = "firebrick", 
+   #            fill = "firebrick2") + 
+  # geom_text(data=topn, 
+  #           mapping = aes(label = countriesAndTerritories),
+  #           vjust = "inward",
+  #           hjust = "inward",
+  #           fontface = "bold", 
+  #           color = "firebrick", 
+  #           size = 2.1
+  #           ) + 
+ scale_y_log10(labels = scales::label_number_si()) + 
+  facet_wrap( ~ reorder(countriesAndTerritories, -cu_cases), ncol = 5) + 
   labs(
     x = "Days since 100th confirmed case",
     y = "Log Cumulative Cases",
@@ -327,6 +332,123 @@ p4<-cov_curve %>%
   theme(strip.text = element_blank())
 
 
-library(patchwork)
-
 (p1/p2/p3) | p4
+#p4
+
+
+topn %>% 
+  arrange(geoId) %>% 
+  view()
+topn_bg %>% 
+  group_by(geoId) %>% 
+  count() %>% 
+  view()
+cov_curve %>% 
+  filter(geoId %in% topn$geoId) %>% 
+  group_by(geoId, countriesAndTerritories) %>% 
+  arrange(geoId) 
+endpoints %>% 
+  arrange(-cu_cases)
+
+
+
+p4 +
+  transition_time(days_elapsed)
+
+
+
+
+data %>%
+  mark %>%
+  mutate(DateRep_lagged = as.Date(DateRep_lagged)) %>%
+  mutate(pop = case_when(geoId == "US" ~ 327.2 ,
+                         geoId == "IT" ~ 60.48)) %>%
+  mutate(case_normal = Cases_cumsum / pop) %>%
+  filter(DateRep_lagged > "2020-02-21") %>%
+  ggplot(aes(x = DateRep_lagged, y = Cases_cumsum, fill = geoId)) +
+  geom_col(position = "dodge") +
+  scale_x_date(breaks = breaks_pretty(5)) +
+  scale_y_continuous(breaks = breaks_extended(7), labels = scales::label_number_si()) +
+  #scale_y_log10() +
+  theme_typewriter() +
+  scale_fill_manual(values = c("forestgreen", "navy")) +
+  labs(
+    title = "Cumulative Cases",
+    x =  "",
+    y = "",
+    subtitle = "11-day lag determined by first day of 100 cases",
+    #caption = "Data via European Centre for Disease Prevention and Control",
+    fill = "Country"
+  ) +
+  theme(legend.position = c(0.1, 0.75)) +
+  transition_time(dateRep) +
+  shadow_mark() +
+  NULL
+
+
+###################################################
+
+cov_curve
+psych::describe(cov_curve)
+cov_curve %>% 
+dossier(countriesAndTerritories, "Japan")
+pal<-c(
+  "CN" = "red",
+  "FR" = "blue",
+  "DE" = "yellow",
+  "IR" = "black",
+  "IT" = "green",
+  "ES" = "orange",
+  "US" = "purple", 
+  rep("gray", (122-7))
+  )
+pal
+cov_curve
+cov_curve %>% 
+ # filter(geoId %in% topn$geoId) %>% 
+  ggplot(aes(x = days_elapsed, 
+             y = cu_cases, 
+             color = geoId,
+             label = countriesAndTerritories )) +
+  geom_line(size = 1)+
+  geom_point(size = 1.5) + 
+ scale_x_continuous() +
+  guides(color = FALSE) +
+  scale_y_log10(labels = scales::label_number_si()) + 
+  labs(
+    x = "Days since 100th confirmed case",
+    y = "Log Cumulative Cases",
+    title = "Crossnational progression of COVID-19", 
+    subtitle = paste("Data as of", format(max(cov_curve$date), "%A, %B %e, %Y")),
+    caption = "Data: https://www.ecdc.europa.eu/
+@wouldeye125"
+  ) + 
+#  scale_color_manual(values = pal)
+  geom_label_repel(data = subset(cov_curve, geoId %in% 
+                                   c("CN" ,"FR" ,"DE" ,"IR" ,"IT" ,"ES" ,"US", "KR", "JP")),
+                   na.rm = TRUE, 
+                   nudge_x = 1,
+                   nudge_y = 0) +
+  theme_typewriter() + 
+  transition_reveal(date) 
+
+
+topn <- cov_curve %>%
+  group_by(geoId) %>%
+  filter(days_elapsed == max(days_elapsed)) %>%
+  ungroup() %>%
+  top_n(7, cu_cases) %>%
+  mutate(
+    days_elapsed = 1,
+    cu_cases = max(cov_curve$cu_cases) - 1e4,
+    countriesAndTerritories = recode(
+      countriesAndTerritories,
+      "United_States_of_America" = "United States",
+      "Czech_Republic" = "Czechia",
+      "United_Kingdom" = "United Kingdom",
+      "South_Korea"= "South Korea"
+    )
+  )
+
+
+topn
