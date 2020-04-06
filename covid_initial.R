@@ -125,6 +125,7 @@ states %>%
   geom_line(color = "#d52b1e", size = 1) + 
   facet_geo(~state, grid = "us_state_grid2") + 
   scale_x_date(breaks = breaks_pretty(3))+
+  scale_y_log10(labels = scales::label_number_si())+
 #  theme(legend.position = c(0.9, 0.2)) + 
   labs(
    title = "By State outbreaks of COVID-19" ,
@@ -133,4 +134,4 @@ states %>%
   ) + 
   theme_typewriter() + 
 theme(plot.title.position = "plot")
-?plot.title.position
+
