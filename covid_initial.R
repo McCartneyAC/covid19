@@ -6,8 +6,10 @@ source("C:\\Users\\Andrew\\Desktop\\Statistics and Data Analysis\\Covid Data\\co
 #########################################
 
 
-data<-pull_data()
+data<-pull_world()
 data
+
+
 p1<-data %>% 
   mark() %>% 
   covidplot()
@@ -19,13 +21,14 @@ p2<-data %>%
 p3<-data %>% 
   mark() %>% 
   covidplot_raw()
-p4 <-cov_curve %>% 
+p4 <- data  %>% 
+  covid_clean %>%
   covidplot_small_multiple()
 ####################################################
 
 
 
-
+# dashboard
 (p1/p2/p3) | p4
 
 
@@ -70,8 +73,8 @@ data %>%
 
 
 #worldwide map log scale
-cov_curve %>% 
- # filter(geoId %in% topn$geoId) %>% 
+data %>% 
+  covid_clean %>% 
   ggplot(aes(x = days_elapsed, 
              y = cu_cases, 
              color = geoId,
@@ -109,8 +112,25 @@ cov_curve %>%
 
 
 states %>% 
+  
   filter(date == max(date)) %>% 
   summarise(
     cases = sum(cases), 
     fatalities=sum(deaths)
   )
+
+
+states %>% 
+  ggplot(aes(x = date, y = cases)) + 
+  geom_line(color = "#d52b1e", size = 1) + 
+  facet_geo(~state, grid = "us_state_grid2") + 
+  scale_x_date(breaks = breaks_pretty(3))+
+#  theme(legend.position = c(0.9, 0.2)) + 
+  labs(
+   title = "By State outbreaks of COVID-19" ,
+   caption = "data via New York Times
+@wouldeye125"
+  ) + 
+  theme_typewriter() + 
+theme(plot.title.position = "plot")
+?plot.title.position

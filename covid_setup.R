@@ -15,6 +15,7 @@ library(patchwork)
 library(gganimate)
 library(readr)
 library(extrafont); loadfonts()
+library(geofacet)
 
 
 # personal functions
@@ -33,7 +34,7 @@ pull_states<-function(){
   read_csv("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv")
   }
 
-pullcounties<-function(){
+pull_counties<-function(){
   read_csv("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv")
 }
 
@@ -88,7 +89,8 @@ mark<-function(data) {
 }
 
 
-topn <- cov_curve %>%
+topn <- data %>% 
+  covid_clean  %>%
   group_by(geoId) %>%
   filter(days_elapsed == max(days_elapsed)) %>%
   ungroup() %>%
@@ -109,13 +111,15 @@ topn <- cov_curve %>%
 
 
 
-topn_bg<- cov_curve %>% 
+topn_bg<- data %>% 
+  covid_clean %>% 
   select(-countriesAndTerritories) %>% 
   filter(geoId %in% topn$geoId) %>% 
   select(geoId, days_elapsed, cu_cases)
 
 
-endpoints <- cov_curve %>% 
+endpoints <- data %>% 
+  covid_clean %>% 
   filter(geoId %in% topn$geoId) %>% 
   group_by(geoId) %>% 
   filter(days_elapsed ==max(days_elapsed)) %>% 
@@ -276,8 +280,9 @@ covidplot_smooth<-function(data_marked){
 }
 
 
-#https://kieranhealy.org/blog/archives/2020/03/27/a-covid-small-multiple/
+
 covidplot_small_multiple<-function(cov_curve){
+  #https://kieranhealy.org/blog/archives/2020/03/27/a-covid-small-multiple/
   cov_curve %>%
     filter(geoId %in% topn$geoId) %>% 
     ggplot(mapping = aes(x = days_elapsed, y = cu_cases)) + 
