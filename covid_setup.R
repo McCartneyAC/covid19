@@ -16,14 +16,14 @@ library(gganimate)
 library(readr)
 library(extrafont); loadfonts()
 library(geofacet)
-
+library(robustbase)
 
 # personal functions
 theme_typewriter <- function() {
   ggplot2::theme_light()+
     ggplot2::theme(text = ggplot2::element_text(family = "Special Elite")) 
 }
-
+`%not_in%` <- purrr::negate(`%in%`)
 
 # data import
 setwd("C:\\Users\\Andrew\\Desktop\\Statistics and Data Analysis\\Covid Data")
@@ -88,9 +88,10 @@ mark<-function(data) {
     mutate(Deaths_cumsum = cumsum(deaths)) 
 }
 
+cov_curve<-pull_world() %>% 
+  covid_clean()
 
-topn <- data %>% 
-  covid_clean  %>%
+topn <- cov_curve %>% 
   group_by(geoId) %>%
   filter(days_elapsed == max(days_elapsed)) %>%
   ungroup() %>%
@@ -111,15 +112,13 @@ topn <- data %>%
 
 
 
-topn_bg<- data %>% 
-  covid_clean %>% 
+topn_bg<- cov_curve %>% 
   select(-countriesAndTerritories) %>% 
   filter(geoId %in% topn$geoId) %>% 
   select(geoId, days_elapsed, cu_cases)
 
 
-endpoints <- data %>% 
-  covid_clean %>% 
+endpoints <- cov_curve %>% 
   filter(geoId %in% topn$geoId) %>% 
   group_by(geoId) %>% 
   filter(days_elapsed ==max(days_elapsed)) %>% 
@@ -305,6 +304,7 @@ covidplot_small_multiple<-function(cov_curve){
               size = 2.1
     ) +
     scale_y_log10(labels = scales::label_number_si()) + 
+    scale_x_continuous()+ 
     facet_wrap( ~ reorder(countriesAndTerritories, -cu_cases), ncol = 5) + 
     labs(
       x = "Days since 100th confirmed case",
