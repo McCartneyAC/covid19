@@ -151,7 +151,7 @@ covidplot<-function(data_marked){
     theme_typewriter() + 
     scale_fill_manual(values = c( "forestgreen", "navy")) + 
     labs(
-      title = "Cumulative Cases", 
+      title = "Cumulative Cases - US and Italy", 
       x =  "", 
       y = "", 
       subtitle = "11-day lag determined by first day of 100 cases", 
@@ -316,3 +316,90 @@ covidplot_small_multiple<-function(cov_curve){
     theme_typewriter() + 
     theme(strip.text = element_blank())
 }
+
+
+######## Daily New ###########################
+
+covidplot_us_daily <- function(data){
+data %>% 
+  filter(geoId == "US") %>% 
+  select(dateRep, cases, deaths) %>% 
+  filter(dateRep >  "2020-02-21") %>% 
+  pivot_longer(-c(dateRep), 
+               names_to = "Daily",
+               values_to = "total") %>% 
+  ggplot(aes(
+    x = dateRep, 
+    y = total, 
+    fill = Daily, 
+    color = Daily
+  )) + 
+  geom_col(position = "dodge") +
+  scale_x_datetime(breaks = breaks_pretty(5)
+  ) + 
+  scale_y_continuous(
+    breaks = breaks_extended(7), labels = scales::label_number_si()
+  ) +
+  theme_typewriter() + 
+  scale_fill_inova() + 
+  scale_color_inova() +
+  labs(
+    title = "US Daily COVID-19", 
+    x =  "", 
+    y = "", 
+    caption = "Data via European Centre for Disease Prevention and Control"
+  ) + 
+  guides(color = FALSE)+ 
+    theme(legend.position = c(0.1, 0.75))
+}
+
+################
+p8<-states %>% 
+  filter(state %not_in% c("Puerto Rico", 
+                          "Virgin Islands", 
+                          "Guam", 
+                          "Northern Mariana Islands",
+                          "American Samoa")) %>% 
+  group_by(state) %>% 
+  mutate(uncum_cases= c(0, diff(cases))) %>% 
+  ungroup() %>% 
+  filter(date > "2020-03-01") %>% 
+  ggplot(aes(
+    x = date, 
+    y = state,
+    fill = uncum_cases
+  )) +
+  scale_x_date(breaks = breaks_pretty(6))+
+  scale_fill_viridis_c() +
+  scale_y_discrete() +
+  geom_tile(color = "white") + 
+  theme_light() +
+  labs(title = "By State Case Counts", 
+       fill = "Daily Cases",
+       x = "",
+       y = "")  +
+  theme_typewriter() 
+
+p7 <- states %>% 
+  filter(state %not_in% c("Puerto Rico", 
+                          "Virgin Islands", 
+                          "Guam", 
+                          "Northern Mariana Islands",
+                          "American Samoa")) %>% 
+  group_by(state) %>% 
+  mutate(uncum_cases= c(0, diff(cases))) %>% 
+  ungroup() %>% 
+  filter(date > "2020-03-01") %>% 
+  group_by(date) %>% 
+  summarise(uncum_cases = sum(uncum_cases)) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = date, y = uncum_cases)) +
+  geom_col(fill = "black")+ 
+  scale_x_date(breaks = breaks_pretty(6))+
+  scale_y_continuous(
+    breaks = breaks_extended(7), labels = scales::label_number_si()
+  ) +
+  theme_light() + 
+  labs(x = "", 
+       y = "") +
+  theme_typewriter() 
