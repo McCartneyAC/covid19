@@ -8,7 +8,7 @@ source("C:\\Users\\Andrew\\Desktop\\Statistics and Data Analysis\\Covid Data\\co
 
 data<-pull_world()
 data
-
+states<-pull_states()
 
 p1<-data %>% 
   mark() %>% 
@@ -34,9 +34,8 @@ p5 <-data %>%
 p4
 # dashboard
 (p1/p5) | p4
-
-p8/p7 + plot_layout(heights = c(4, 1))
-
+states %>% 
+  covid_tile()
 
 #### deaths
 data
@@ -172,7 +171,7 @@ data %>%
     fatalities=sum(deaths)
   )
 
-states<-pull_states()
+
 
 states %>% 
   filter(date == max(date)) %>% 
@@ -283,12 +282,80 @@ counties<-pull_counties()
 counties <- counties %>% 
   filter(county != "Unknown")
 
+counties %>% 
+  filter(state == "New York") %>% 
+  view()
 
 
-
-
+counties %>% 
+  filter(county != "Unknown") %>% 
+  group_by(county) %>% 
+  mutate(uncum_deaths= c(0, diff(deaths))) %>% 
+  ungroup() %>% 
+  filter(date > "2020-03-01") %>% 
+  ggplot(aes(
+    x = date, 
+    y = county,
+    fill = uncum_deaths
+  )) +
+  scale_x_date(breaks = breaks_pretty(6))+
+  scale_fill_viridis_c() +
+  scale_y_discrete(labels = NULL) +
+  geom_tile(color = "white") + 
+  theme_light() + 
+  facet_geo(~state) 
 
 
 
 
 ###########################################################
+library(forcats)
+
+
+states %>% 
+  filter(state %not_in% c("Puerto Rico", 
+                          "Virgin Islands", 
+                          "Guam", 
+                          "Northern Mariana Islands",
+                          "American Samoa")) %>% 
+  select(state) %>% 
+  unique() %>% 
+  arrange(desc(state)) %>% 
+  c() -> state_names
+
+state_names
+
+
+
+
+
+
+
+
+
+
+states %>% 
+  filter(state %not_in% c("Puerto Rico", 
+                          "Virgin Islands", 
+                          "Guam", 
+                          "Northern Mariana Islands",
+                          "American Samoa")) %>% 
+  group_by(state) %>% 
+  mutate(uncum_cases= c(0, diff(cases))) %>% 
+  ungroup() %>% 
+  filter(date > "2020-03-01") %>% 
+  ggplot(aes(
+    x = date, 
+    y = state,
+    fill = uncum_cases
+  )) +
+  scale_y_discrete(limits = rev(levels(states$state)))+
+  scale_x_date(breaks = breaks_pretty(6))+
+  scale_fill_viridis_c() +
+  geom_tile(color = "white") + 
+  theme_light() +
+  labs(title = "By State Case Counts", 
+       fill = "Daily Cases",
+       x = "",
+       y = "")  +
+  theme_typewriter() 

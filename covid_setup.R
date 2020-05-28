@@ -45,7 +45,7 @@ pull_world <- function() {
   
   GET(url,authenticate(":", ":", type = "ntlm"),write_disk(tf <- tempfile(fileext = ".xlsx")))
   
-  world <- read_excel(tf)
+world <- read_excel(tf)
   return(world)
 }
 
@@ -74,6 +74,7 @@ covid_clean<-function(data) {
 mark<-function(data) {
   data%>% 
     filter(geoId %in% c("US", "IT")) %>% 
+  #  mutate(dateRep = mdy)
     arrange(dateRep) %>% 
     group_by(geoId) %>% 
     mutate(mark = row_number()) %>% 
@@ -96,6 +97,7 @@ topn <- cov_curve %>%
   filter(days_elapsed == max(days_elapsed)) %>%
   ungroup() %>%
   top_n(30, cu_cases) %>%
+  arrange(-cu_cases) %>% 
   select(countriesAndTerritories, geoId, cu_cases) %>%
   mutate(
     days_elapsed = 1,
@@ -110,6 +112,13 @@ topn <- cov_curve %>%
   )
 
 
+topn_factors<-cov_curve %>% 
+  group_by(geoId) %>%
+  filter(days_elapsed == max(days_elapsed)) %>%
+  ungroup() %>%
+  top_n(30, cu_cases) %>%
+  arrange(-cu_cases) %>% 
+  select(countriesAndTerritories)
 
 
 topn_bg<- cov_curve %>% 
@@ -278,12 +287,18 @@ covidplot_smooth<-function(data_marked){
     theme(legend.position = c(0.1, 0.75))
 }
 
-
+cov_curve %>%
+  filter(geoId %in% topn$geoId) %>% 
+  group_by(geoId) %>% 
+  arrange(-cu_cases)
 
 covidplot_small_multiple<-function(cov_curve){
   #https://kieranhealy.org/blog/archives/2020/03/27/a-covid-small-multiple/
   cov_curve %>%
     filter(geoId %in% topn$geoId) %>% 
+    group_by(geoId) %>% 
+    arrange(cu_cases) %>% 
+    ungroup() %>% 
     ggplot(mapping = aes(x = days_elapsed, y = cu_cases)) + 
     geom_line(data =topn_bg,
               aes(group = geoId),
@@ -305,7 +320,8 @@ covidplot_small_multiple<-function(cov_curve){
     ) +
     scale_y_log10(labels = scales::label_number_si()) + 
     scale_x_continuous()+ 
-    facet_wrap( ~ reorder(countriesAndTerritories, -cu_cases), ncol = 5) + 
+    # reorder(FUN = max) is bananas but reorder(FUN = min) works just fine????
+    facet_wrap( ~ reorder(countriesAndTerritories, -cu_cases, min), ncol = 5) + 
     labs(
       x = "Days since 100th confirmed case",
       y = "Log Cumulative Cases",
@@ -316,7 +332,6 @@ covidplot_small_multiple<-function(cov_curve){
     theme_typewriter() + 
     theme(strip.text = element_blank())
 }
-
 
 ######## Daily New ###########################
 
@@ -354,52 +369,56 @@ data %>%
 }
 
 ################
-p8<-states %>% 
-  filter(state %not_in% c("Puerto Rico", 
-                          "Virgin Islands", 
-                          "Guam", 
-                          "Northern Mariana Islands",
-                          "American Samoa")) %>% 
-  group_by(state) %>% 
-  mutate(uncum_cases= c(0, diff(cases))) %>% 
-  ungroup() %>% 
-  filter(date > "2020-03-01") %>% 
-  ggplot(aes(
-    x = date, 
-    y = state,
-    fill = uncum_cases
-  )) +
-  scale_x_date(breaks = breaks_pretty(6))+
-  scale_fill_viridis_c() +
-  scale_y_discrete() +
-  geom_tile(color = "white") + 
-  theme_light() +
-  labs(title = "By State Case Counts", 
-       fill = "Daily Cases",
-       x = "",
-       y = "")  +
-  theme_typewriter() 
-
-p7 <- states %>% 
-  filter(state %not_in% c("Puerto Rico", 
-                          "Virgin Islands", 
-                          "Guam", 
-                          "Northern Mariana Islands",
-                          "American Samoa")) %>% 
-  group_by(state) %>% 
-  mutate(uncum_cases= c(0, diff(cases))) %>% 
-  ungroup() %>% 
-  filter(date > "2020-03-01") %>% 
-  group_by(date) %>% 
-  summarise(uncum_cases = sum(uncum_cases)) %>% 
-  ungroup() %>% 
-  ggplot(aes(x = date, y = uncum_cases)) +
-  geom_col(fill = "black")+ 
-  scale_x_date(breaks = breaks_pretty(6))+
-  scale_y_continuous(
-    breaks = breaks_extended(7), labels = scales::label_number_si()
-  ) +
-  theme_light() + 
-  labs(x = "", 
-       y = "") +
-  theme_typewriter() 
+covid_tile<-function(states){
+  p8<-states %>% 
+    filter(state %not_in% c("Puerto Rico", 
+                            "Virgin Islands", 
+                            "Guam", 
+                            "Northern Mariana Islands",
+                            "American Samoa")) %>% 
+    group_by(state) %>% 
+    mutate(uncum_cases= c(0, diff(cases))) %>% 
+    ungroup() %>% 
+    filter(date > "2020-03-01") %>% 
+    ggplot(aes(
+      x = date, 
+      y = state,
+      fill = uncum_cases
+    )) +
+    scale_x_date(breaks = breaks_pretty(6))+
+    scale_fill_viridis_c() +
+    geom_tile(color = "white") + 
+    theme_light() +
+    labs(title = "By State Case Counts", 
+         fill = "Daily Cases",
+         x = "",
+         y = "")  +
+    theme_typewriter() 
+  
+  p7 <- states %>% 
+    filter(state %not_in% c("Puerto Rico", 
+                            "Virgin Islands", 
+                            "Guam", 
+                            "Northern Mariana Islands",
+                            "American Samoa")) %>% 
+    group_by(state) %>% 
+    mutate(uncum_cases= c(0, diff(cases))) %>% 
+    ungroup() %>% 
+    filter(date > "2020-03-01") %>% 
+    group_by(date) %>% 
+    summarise(uncum_cases = sum(uncum_cases)) %>% 
+    ungroup() %>% 
+    ggplot(aes(x = date, y = uncum_cases)) +
+    geom_col(fill = "black")+ 
+    scale_x_date(breaks = breaks_pretty(6))+
+    scale_y_continuous(
+      breaks = breaks_extended(7), labels = scales::label_number_si()
+    ) +
+    theme_light() + 
+    labs(x = "", 
+         y = "") +
+    theme_typewriter() 
+  
+  p8/p7 + plot_layout(heights = c(4, 1))
+  
+}
