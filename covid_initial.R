@@ -7,8 +7,13 @@ source("C:\\Users\\Andrew\\Desktop\\Statistics and Data Analysis\\Covid Data\\co
 
 
 data<-pull_world()
-data
-states<-pull_states()
+data<-world
+#data <- readxl::read_xlsx("C:\\Users\\Andrew\\Desktop\\Statistics and Data Analysis\\Covid Data\\COVID-19-geographic-disbtribution-worldwide-2020-07-25.xlsx")
+states<-pull_states(); max(states$date)
+
+
+
+
 
 p1<-data %>% 
   mark() %>% 
@@ -22,23 +27,88 @@ p3<-data %>%
   mark() %>% 
   covidplot_raw()
 
-p4 <- data  %>% 
-  covid_clean() %>%
+p4 <- data %>%   
+  covid_clean() %>% 
   covidplot_small_multiple()
 
 p5 <-data %>% 
   covidplot_us_daily()
+
+# data %>%
+#   data_fuckery(SE = TRUE)
 ####################################################
+
+p5   + geom_vline(xintercept = as.Date("2020-09-01"), 
+                  linetype = "dashed", 
+                  color = "red") + 
+  annotate("text", label = "Schools Reopen 
+(approx)", 
+           y = 150000, 
+           x = as.Date("2020-08-05"), 
+           color = "red")+
+  geom_smooth(se= FALSE, span = 0.13) + guides(smooth = FALSE)
+
+pwhatever + geom_vline(xintercept = as.Date("2020-09-01"), 
+                         linetype = "dashed", 
+                         color = "red") + 
+  annotate("text", label = "Schools Reopen \n(approx)", family = "Special Elite", 
+           y = 150000, 
+           x = as.Date("2020-08-05"), 
+           color = "red") +
+  geom_smooth(se= T, span = 0.13) 
+  transition_reveal(date, keep =  TRUE)
 
 
 p4
 # dashboard
-(p1/p5) | p4
+p5 | p4
+
+
 states %>% 
   covid_tile()
+teacher_pay
+
+
+unknown_pleasures <- states %>% 
+  filter(state %not_in% c("Puerto Rico", 
+                          "Virgin Islands", 
+                          "Guam", 
+                          "Northern Mariana Islands",
+                          "American Samoa",
+                          "District of Columbia")) %>% 
+#  left_join(teacher_pay, by = "state") 
+  mutate(cases_per = cases / (population2018/1000)) %>% 
+  group_by(state) %>% 
+  mutate(uncum_cases= c(0, diff(cases_per))) %>% 
+  ungroup() %>% 
+  mutate(uncum_cases = if_else(uncum_cases<0, 0, uncum_cases)) %>% 
+  filter(date > "2020-03-01")  %>% 
+  arrange(desc(state), date) %>% 
+  mutate(state = factor(state)) %>% 
+  ggplot(aes(
+    x = date, 
+    y = state,
+    height = uncum_cases
+  )) +
+  scale_x_date(breaks = breaks_pretty(12))+
+  geom_ridgeline(alpha = 0.5, fill = "#004b8d") + 
+  theme_light() +
+  labs(title = "By State Case Counts", 
+       fill = "Daily Cases",
+       subtitle = "Cases per 1,000 Individuals",
+       x = "",
+       y = "")  +
+  theme_typewriter()  
+  
+unknown_pleasures 
+
+
+
+state_growth("Georgia")  
+
 
 #### deaths
-data
+
 data %>% 
   #covid_clean() %>% 
   mark() %>% 
@@ -136,7 +206,7 @@ data %>%
   ) + 
 #  scale_color_manual(values = pal)
   geom_label_repel(data = subset(cov_curve, geoId %in% 
-                                   c("CN" ,"FR" ,"DE" ,"IR" ,"IT" ,"ES" ,"US", "KR", "JP")),
+    c("CN" ,"IR" ,"IT" ,"ES" ,"US", "KR", "JP", "BR", "IN", "RU", "PE", "MX", "UK")),
                    na.rm = TRUE, 
                    nudge_x = 1,
                    nudge_y = 0) +
@@ -144,14 +214,6 @@ data %>%
   transition_reveal(date) 
 
 
-
-
-#############################
-# 
-# cov_curve %>% 
-#   filter(cu_cases < 1000) %>% 
-#   filter(days_elapsed <30) %>% 
-#   view()
 
 ###############################
 # states data 
@@ -259,55 +321,6 @@ states %>%
                           "Northern Mariana Islands")) %>% 
   view()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-counties<-pull_counties()
-counties <- counties %>% 
-  filter(county != "Unknown")
-
-counties %>% 
-  filter(state == "New York") %>% 
-  view()
-
-
-counties %>% 
-  filter(county != "Unknown") %>% 
-  group_by(county) %>% 
-  mutate(uncum_deaths= c(0, diff(deaths))) %>% 
-  ungroup() %>% 
-  filter(date > "2020-03-01") %>% 
-  ggplot(aes(
-    x = date, 
-    y = county,
-    fill = uncum_deaths
-  )) +
-  scale_x_date(breaks = breaks_pretty(6))+
-  scale_fill_viridis_c() +
-  scale_y_discrete(labels = NULL) +
-  geom_tile(color = "white") + 
-  theme_light() + 
-  facet_geo(~state) 
-
-
-
-
 ###########################################################
 library(forcats)
 
@@ -322,17 +335,6 @@ states %>%
   unique() %>% 
   arrange(desc(state)) %>% 
   c() -> state_names
-
-state_names
-
-
-
-
-
-
-
-
-
 
 states %>% 
   filter(state %not_in% c("Puerto Rico", 
@@ -359,3 +361,184 @@ states %>%
        x = "",
        y = "")  +
   theme_typewriter() 
+
+
+########################################################################################
+teacher_pay <- read_csv("https://raw.githubusercontent.com/McCartneyAC/teacher_pay/master/teacher_pay.csv")
+
+states <- pull_states()
+states %>% 
+  covid_tile()
+teacher_pay <- teacher_pay %>%
+  mutate(winner = if_else(clinton_votes_2016 > trump_votes_2016 , "democratic", "republican")) %>% 
+  rename(state = State)
+
+teacher_pay
+states <- states %>% 
+  left_join(teacher_pay, by = "state") %>% 
+  dplyr::select(date, state, fips, cases, deaths, population2018, log_pop, winner) %>% 
+  mutate(cases_per = cases / (population2018/1000))
+
+states 
+p8<-states %>% 
+  filter(state %not_in% c("Puerto Rico", 
+                          "Virgin Islands", 
+                          "Guam", 
+                          "Northern Mariana Islands",
+                          "American Samoa",
+                          "District of Columbia")) %>% 
+  group_by(state) %>% 
+  mutate(uncum_cases= c(0, diff(cases_per))) %>% 
+  ungroup() %>% 
+  filter(date > "2020-03-01") %>%
+  mutate(uncum_cases = if_else(uncum_cases < 0, 0, uncum_cases)) %>% 
+  filter(uncum_cases > 0) %>% 
+  ggplot(aes(
+    x = date, 
+    y = state,
+    fill = uncum_cases
+  )) +
+  scale_x_date(breaks = breaks_pretty(6))+
+  scale_fill_viridis_c() +
+  geom_tile(color = "white") + 
+  theme_light() +
+  labs(title = "By State Case Counts", 
+       fill = "Daily Cases",
+       subtitle = "Cases per 1,000 Individuals",
+       x = "",
+       y = "")  +
+  theme_typewriter() 
+
+p7 <- states %>% 
+  filter(state %not_in% c("Puerto Rico", 
+                          "Virgin Islands", 
+                          "Guam", 
+                          "Northern Mariana Islands",
+                          "American Samoa", 
+                          "District of Columbia")) %>% 
+  group_by(state) %>% 
+  mutate(uncum_cases= c(0, diff(cases))) %>% 
+  ungroup() %>% 
+  filter(date > "2020-03-01") %>% 
+  group_by(date) %>% 
+  summarise(uncum_cases = sum(uncum_cases)) %>% 
+  ungroup() %>% 
+  filter(uncum_cases>0) %>% 
+  ggplot(aes(x = date, y = uncum_cases)) +
+  geom_col(fill = "black")+ 
+  scale_x_date(breaks = breaks_pretty(6))+
+  scale_y_continuous(
+    breaks = breaks_extended(7), labels = scales::label_number_si()
+  ) +
+  geom_smooth(span = 0.35) + 
+  theme_light() + 
+  labs(x = "", 
+       y = "") +
+  theme_typewriter() 
+
+p8/p7 + plot_layout(heights = c(4, 1))
+
+states %>% 
+  filter(state %not_in% c("Puerto Rico", 
+                               "Virgin Islands", 
+                               "Guam", 
+                               "Northern Mariana Islands",
+                               "American Samoa", 
+                               "District of Columbia")) %>% 
+  group_by(state) %>% 
+  mutate(uncum_cases= c(0, diff(cases))) %>% 
+  ungroup() %>% 
+  group_by(date, winner) %>% 
+  mutate(winsum = sum(uncum_cases)) %>% 
+  ungroup() %>% 
+  filter(date > "2020-03-01") %>% 
+  ggplot(aes(x = date, y = winsum, color = winner)) + 
+  geom_line(size = 2) + 
+  #geom_smooth()+
+  university::scale_color_american() + 
+  scale_y_continuous(
+    breaks = breaks_extended(7), labels = scales::label_number_si()
+  ) +
+  scale_x_date(breaks = breaks_pretty(6))+
+  theme_typewriter() + 
+  labs(title = "Republican States Overtake 
+Democratic States in Covid19 Cases", 
+       y = "Total Daily Cases", 
+       x = "", 
+       color = "State Party 
+affiliation in 
+2016 Election")
+
+library(ggvis)
+states %>% 
+  filter(state %not_in% c("Puerto Rico", 
+                          "Virgin Islands", 
+                          "Guam", 
+                          "Northern Mariana Islands",
+                          "American Samoa", 
+                          "District of Columbia")) %>% 
+  group_by(state) %>% 
+  mutate(uncum_cases= c(0, diff(cases))) %>% 
+  ungroup() %>% 
+  group_by(date, winner) %>% 
+  mutate(winsum = sum(uncum_cases)) %>% 
+  ungroup() %>% 
+  filter(date > "2020-03-01") %>% 
+  ggvis(~date, ~winsum) %>% 
+  #group_by(winner) %>% 
+  layer_points(fill = ~factor(winner))
+
+
+
+
+
+data <-states %>% 
+  filter(state %in% c("New York", "Florida")) %>% 
+  group_by(state) %>% 
+  mutate(uncum_cases = c(1, diff(cases))) %>% 
+  ungroup() %>% 
+  filter(date > "2020-03-01")
+
+state_max <- max(data$uncum_cases)
+
+data %>% 
+  filter(date > "2020-06-25")
+data %>% 
+  ggplot(aes(x = date, y = uncum_cases)) +
+  geom_point(fill = "black")+ 
+  scale_x_date(breaks = breaks_pretty(8))+
+  scale_y_continuous(
+    breaks = breaks_extended(7), labels = scales::label_number_si(), 
+    limits = c(0, state_max)
+  ) +
+  facet_wrap(~state) + 
+  geom_smooth(color = "orange", span = 0.3) + 
+  theme_light() + 
+  labs(title = paste0("Statewide Cases: "),
+       x = "", 
+       y = "") +
+  theme_typewriter()
+
+
+################
+maxukr <- data %>% 
+  filter(countriesAndTerritories == "Ukraine") %>% 
+  summarize(max = max(cases))
+maxukr
+data %>% 
+  filter(countriesAndTerritories == "Ukraine") %>% 
+  mutate(max1 = max(cases)) %>% 
+  ggplot(aes(x = as.Date(dateRep), y = cases)) + 
+  geom_col() + 
+  theme_light() + 
+  geom_smooth() + 
+  scale_y_continuous(limits = c(0, 30000))
+
+
+
+data %>% 
+  filter(countriesAndTerritories == "Bermuda") %>% 
+  ggplot(aes(x = dateRep, y = cases)) +
+  geom_col() + geom_smooth() + 
+  theme_typewriter()+ 
+  labs(title = "COVID-19 cases: Bermuda")

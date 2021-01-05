@@ -17,7 +17,8 @@ library(readr)
 library(extrafont); loadfonts()
 library(geofacet)
 library(robustbase)
-
+library(ggridges)
+library(forcats)
 # personal functions
 theme_typewriter <- function() {
   ggplot2::theme_light()+
@@ -47,20 +48,30 @@ pull_world <- function() {
   
 world <- read_excel(tf)
   return(world)
-}
+} 
+
+teacher_pay <- read_csv("https://raw.githubusercontent.com/McCartneyAC/teacher_pay/master/teacher_pay.csv")
+
+states <- pull_states()
+states <- states %>% 
+  left_join(teacher_pay, by = "state") %>% 
+  dplyr::select(date, state, fips, cases, deaths, abbreviation, population2018, log_pop)%>% 
+  mutate(cases_per = cases / (population2018/1000))
 
 
 covid_clean<-function(data) {
   data %>%
     mutate(date = lubridate::ymd(dateRep),
-           countriesAndTerritories = recode(
+           countriesAndTerritories = dplyr::recode(
              countriesAndTerritories,
              "United_States_of_America" = "United States",
              "Czech_Republic" = "Czechia",
              "United_Kingdom" = "United Kingdom",
-             "South_Korea"= "South Korea"
-           )) %>% 
-    select(date, countriesAndTerritories, geoId, cases, deaths) %>%
+             "South_Korea"= "South Korea", 
+             "Saudi_Arabia" = "Saudi Arabia"
+           )
+           ) %>% 
+    dplyr::select(date, countriesAndTerritories, geoId, cases, deaths) %>%
     drop_na(geoId) %>%
     group_by(geoId) %>%
     arrange(date) %>%
@@ -92,22 +103,26 @@ mark<-function(data) {
 cov_curve<-pull_world() %>% 
   covid_clean()
 
+
+# cov_curve <- world %>% 
+#   covid_clean()
 topn <- cov_curve %>% 
   group_by(geoId) %>%
   filter(days_elapsed == max(days_elapsed)) %>%
   ungroup() %>%
   top_n(30, cu_cases) %>%
   arrange(-cu_cases) %>% 
-  select(countriesAndTerritories, geoId, cu_cases) %>%
+  dplyr::select(countriesAndTerritories, geoId, cu_cases) %>%
   mutate(
     days_elapsed = 1,
     cu_cases = max(cov_curve$cu_cases) - 1e4,
-    countriesAndTerritories = recode(
+    countriesAndTerritories = dplyr::recode(
       countriesAndTerritories,
       "United_States_of_America" = "United States",
       "Czech_Republic" = "Czechia",
       "United_Kingdom" = "United Kingdom",
-      "South_Korea"= "South Korea"
+      "South_Korea"= "South Korea",
+      "Saudi_Arabia" = "Saudi Arabia"
     )
   )
 
@@ -118,20 +133,20 @@ topn_factors<-cov_curve %>%
   ungroup() %>%
   top_n(30, cu_cases) %>%
   arrange(-cu_cases) %>% 
-  select(countriesAndTerritories)
+  dplyr::select(countriesAndTerritories)
 
 
 topn_bg<- cov_curve %>% 
-  select(-countriesAndTerritories) %>% 
+  dplyr::select(-countriesAndTerritories) %>% 
   filter(geoId %in% topn$geoId) %>% 
-  select(geoId, days_elapsed, cu_cases)
+  dplyr::select(geoId, days_elapsed, cu_cases)
 
 
 endpoints <- cov_curve %>% 
   filter(geoId %in% topn$geoId) %>% 
   group_by(geoId) %>% 
   filter(days_elapsed ==max(days_elapsed)) %>% 
-  select(countriesAndTerritories, 
+  dplyr::select(countriesAndTerritories, 
          geoId, days_elapsed, 
          cu_cases) %>% 
   ungroup()
@@ -336,35 +351,42 @@ covidplot_small_multiple<-function(cov_curve){
 ######## Daily New ###########################
 
 covidplot_us_daily <- function(data){
-data %>% 
-  filter(geoId == "US") %>% 
-  select(dateRep, cases, deaths) %>% 
-  filter(dateRep >  "2020-02-21") %>% 
-  pivot_longer(-c(dateRep), 
-               names_to = "Daily",
-               values_to = "total") %>% 
-  ggplot(aes(
-    x = dateRep, 
-    y = total, 
-    fill = Daily, 
-    color = Daily
-  )) + 
-  geom_col(position = "dodge") +
-  scale_x_datetime(breaks = breaks_pretty(5)
-  ) + 
-  scale_y_continuous(
-    breaks = breaks_extended(7), labels = scales::label_number_si()
-  ) +
-  theme_typewriter() + 
-  scale_fill_inova() + 
-  scale_color_inova() +
-  labs(
-    title = "US Daily COVID-19", 
-    x =  "", 
-    y = "", 
-    caption = "Data via European Centre for Disease Prevention and Control"
-  ) + 
-  guides(color = FALSE)+ 
+  data_adj <- data %>% 
+    filter(geoId == "US") %>% 
+    dplyr::select(dateRep, cases, deaths) %>% 
+    filter(dateRep >  "2020-02-21") %>% 
+    pivot_longer(-c(dateRep), 
+                 names_to = "Daily",
+                 values_to = "total") %>% 
+    mutate(dateRep = as.Date(dateRep))
+  
+  three_quarters<- 0.85*max(data_adj$total)
+  
+  data_adj %>% 
+    ggplot(aes(
+      x = dateRep, 
+      y = total, 
+      fill = Daily, 
+      color = Daily
+    )) + 
+    geom_col(position = "dodge") +
+    scale_x_date(breaks = breaks_pretty(10)
+    ) + 
+    scale_y_continuous(
+      breaks = breaks_extended(7), labels = scales::label_number_si()
+    ) + 
+    # geom_vline(xintercept = as.Date("2020-07-16"),linetype = "dashed",color = "red") +
+    # annotate("text", label = "Data Shift from CDC to HHS",y = three_quarters,x = as.Date("2020-07-01"),color = "red")+
+    theme_typewriter() + 
+    scale_fill_inova() + 
+    scale_color_inova() +
+    labs(
+      title = "US Daily COVID-19", 
+      x =  "", 
+      y = "", 
+      caption = "Data via European Centre for Disease Prevention and Control"
+    ) + 
+    guides(color = FALSE)+ 
     theme(legend.position = c(0.1, 0.75))
 }
 
@@ -377,9 +399,10 @@ covid_tile<-function(states){
                             "Northern Mariana Islands",
                             "American Samoa")) %>% 
     group_by(state) %>% 
-    mutate(uncum_cases= c(0, diff(cases))) %>% 
+    mutate(uncum_cases= c(1, diff(cases))) %>% 
     ungroup() %>% 
     filter(date > "2020-03-01") %>% 
+    mutate(uncum_cases = if_else(uncum_cases<0, 0, uncum_cases)) %>% 
     ggplot(aes(
       x = date, 
       y = state,
@@ -402,7 +425,7 @@ covid_tile<-function(states){
                             "Northern Mariana Islands",
                             "American Samoa")) %>% 
     group_by(state) %>% 
-    mutate(uncum_cases= c(0, diff(cases))) %>% 
+    mutate(uncum_cases= c(1, diff(cases))) %>% 
     ungroup() %>% 
     filter(date > "2020-03-01") %>% 
     group_by(date) %>% 
@@ -410,6 +433,14 @@ covid_tile<-function(states){
     ungroup() %>% 
     ggplot(aes(x = date, y = uncum_cases)) +
     geom_col(fill = "black")+ 
+    geom_vline(xintercept = as.Date("2020-07-16"),
+               linetype = "dashed",
+               color = "red") +
+    annotate("text", label = "Data Shift 
+from CDC to HHS",
+             y = 30000,
+             x = as.Date("2020-07-07"),
+             color = "red")+
     scale_x_date(breaks = breaks_pretty(6))+
     scale_y_continuous(
       breaks = breaks_extended(7), labels = scales::label_number_si()
@@ -422,3 +453,206 @@ covid_tile<-function(states){
   p8/p7 + plot_layout(heights = c(4, 1))
   
 }
+state_growth<- function(state){
+  
+  data <-states %>% 
+    filter(state == !!state) %>% 
+    mutate(uncum_cases= c(0, diff(cases))) %>% 
+    filter(date > "2020-03-01")
+  
+  state_max <- max(data$uncum_cases)
+  
+  data %>% 
+    ggplot(aes(x = date, y = uncum_cases)) +
+    geom_col(fill = "black")+ 
+    scale_x_date(breaks = breaks_pretty(8))+
+    scale_y_continuous(
+      breaks = breaks_extended(7), labels = scales::label_number_si(), 
+      limits = c(0, state_max)
+    ) +
+    geom_smooth(color = "orange", span = 0.4) + 
+    theme_light() + 
+    labs(title = paste0("Statewide cases: ", state),
+         x = "", 
+         y = "") +
+    theme_typewriter() 
+}
+
+
+
+
+data_fuckery<-function(data, SE = FALSE) {
+  data_adj <- data %>% 
+    filter(geoId == "US") %>% 
+    dplyr::select(dateRep, cases, deaths) %>% 
+    filter(dateRep >  "2020-02-21") %>% 
+    pivot_longer(-c(dateRep), 
+                 names_to = "Daily",
+                 values_to = "total") %>% 
+    mutate(dateRep = as.Date(dateRep)) %>% 
+    mccrr::center(dateRep, as.Date("2020-07-16")) %>% 
+    mutate(dateRep = as.numeric(dateRep))
+  
+  data_adj %>% 
+    filter(dateRep > - 39) %>% 
+    filter(Daily == "cases") %>% 
+    mutate(reporter = if_else(dateRep > 0, "HHS", "CDC")) %>% 
+    ggplot(aes(x = dateRep, y = total, color = reporter)) + 
+    geom_point() + 
+    geom_smooth(method = "lm", se = SE) + 
+    theme_typewriter() + 
+    scale_fill_inova() + 
+    scale_x_continuous(breaks =breaks_pretty(10)) +
+    scale_y_continuous(
+      breaks = breaks_extended(7), labels = scales::label_number_si()
+    ) + 
+    scale_color_inova() +
+    labs(
+      title = "US Covid cases have stopped rising since the Data Move. ", 
+      x =  "Days since the Data Switch", 
+      y = "Daily New Cases", 
+      caption = "On July 15, Trump ordered that hospitals send future data to HHS rather than the CDC. 
+Since then, COVID cases have ceased to rise."
+    ) + 
+    theme(legend.position = c(0.1, 0.75))
+}
+
+
+
+#     mutate(uncum_cases = if_else(uncum_cases<0, 0, uncum_cases)) %>% 
+########################################
+# US Alt
+
+
+
+pwhatever <- states %>% 
+  arrange(date) %>%   
+  filter(date > "2020-02-01") %>% 
+  group_by(state) %>% 
+  mutate(uncum_cases= c(cases[1], diff(cases)))  %>% 
+  filter(uncum_cases > 0) %>% 
+  ungroup() %>% 
+  group_by(date) %>% 
+  summarize(uncum_cases = sum(uncum_cases))  %>% 
+  arrange(date) %>% 
+  ggplot(aes(x = date, y = uncum_cases, group = date)) +
+  geom_col() + 
+  scale_x_date(breaks = breaks_pretty(10)
+  ) + 
+  scale_y_continuous(
+    breaks = breaks_extended(7), labels = scales::label_number_si()
+  ) +
+  theme_typewriter() + 
+  scale_fill_inova() + 
+  scale_color_inova() +
+  labs(
+    title = "US Daily COVID-19", 
+    x =  "", 
+    y = "", 
+    caption = "U.S. Daily New Cases"
+  ) + 
+  guides(color = FALSE)+ 
+  theme(legend.position = c(0.1, 0.75)) 
+  # geom_vline(xintercept = as.Date("2020-09-01"), 
+  #                                                  linetype = "dashed", 
+  #                                                  color = "red") + 
+  # annotate("text", label = "Schools Reopen (approx)", family = "Special Elite", 
+  #          y = 150000, 
+  #          x = as.Date("2020-08-05"), 
+  #          color = "red")
+  #geom_smooth(se= T, span = 0.13) + 
+  # guides(smooth = FALSE) 
+  # transition_reveal(date, keep =  TRUE)
+
+
+
+decumulate<-function(df, var){
+  user_var<-enquo(var)
+  varname <- quo_name(user_var)
+  firstval<-df %>% 
+    # how the hell does get_quo_expr help here?
+    dplyr::select(!!user_var) %>% 
+    dplyr::filter(row_number()==1)
+
+  mutate(df, `:=`(!!varname, (
+    # actual function here
+    c(firstval, diff(!!user_var))
+  ))) %>% 
+    unnest(!!user_var)
+}
+
+
+
+
+
+# 
+# 
+# 
+# states %>% 
+#   group_by(state) %>% 
+#   arrange(date) %>% 
+#   mutate(dead= c(deaths[1], diff(deaths)))  %>%
+#   ungroup() %>% 
+#   group_by(date) %>% 
+#   mutate(winsum = sum(dead)) %>% 
+#   ggplot(aes(x = date, y = dead)) + 
+#   geom_col() + 
+#   geom_smooth(aes(y = winsum), color = "red"#,
+#              # span = 0.01
+#              ) + 
+#   scale_y_continuous(limits = c(0,3000))+
+#   scale_x_date(breaks = breaks_pretty(6),
+#                limits = c(as.Date("2020-03-01"), 
+#                           Sys.Date()
+#                           )
+#   ) + 
+#   theme_typewriter()
+#                
+
+# 
+# data_adj <- data %>% 
+#   filter(geoId == "US") %>% 
+#   dplyr::select(dateRep, cases, deaths) %>% 
+#   filter(dateRep >  "2020-02-21") %>% 
+#   pivot_longer(-c(dateRep), 
+#                names_to = "Daily",
+#                values_to = "total") %>% 
+#   mutate(dateRep = as.Date(dateRep))
+# 
+# three_quarters<- 0.85*max(data_adj$total)
+# 
+# data_adj %>%
+#   filter(Daily == "deaths") %>% 
+#   ggplot(aes(
+#     x = dateRep, 
+#     y = total#, 
+#     #fill = Daily, 
+#     #color = Daily
+#   )) + 
+#   geom_col(position = "dodge") +
+#   scale_x_date(breaks = breaks_pretty(5)
+#   ) + 
+#   scale_y_continuous(
+#     breaks = breaks_extended(7), labels = scales::label_number_si()
+#   ) + 
+#   # geom_vline(xintercept = as.Date("2020-07-16"),linetype = "dashed",color = "red") +
+#   # annotate("text", label = "Data Shift from CDC to HHS",y = three_quarters,x = as.Date("2020-07-01"),color = "red")+
+#   theme_typewriter() + 
+#   scale_fill_inova() + 
+#   scale_color_inova() +
+#   labs(
+#     title = "US Daily COVID-19", 
+#     x =  "", 
+#     y = "", 
+#     caption = "Data via European Centre for Disease Prevention and Control"
+#   ) + 
+#   guides(color = FALSE)+ 
+#   theme(legend.position = c(0.1, 0.75))+ 
+#   geom_vline(xintercept = as.Date("2020-09-01"), 
+#                                                     linetype = "dashed", 
+#                                                     color = "red") + 
+#   annotate("text", label = "Schools Reopen (approx)", 
+#            y = 1500, 
+#            x = as.Date("2020-08-05"), 
+#            color = "red")+
+#   geom_smooth(se= FALSE, span = 0.13)
